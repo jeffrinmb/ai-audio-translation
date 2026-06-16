@@ -4,13 +4,13 @@
   "private": true,
   "workspaces": [
     "packages/backend",
-    "packages/worker",
-    "packages/frontend"
+    "packages/frontend",
+    "packages/speaker-desktop"
   ],
   "scripts": {
     "dev:backend": "npm run dev --workspace=packages/backend",
-    "dev:worker": "npm run dev --workspace=packages/worker",
     "dev:frontend": "npm run dev --workspace=packages/frontend",
+    "dev:desktop": "npm run dev --workspace=packages/speaker-desktop",
     "build:all": "npm run build --workspaces",
     "install:all": "npm install"
   }

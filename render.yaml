@@ -23,30 +23,3 @@ services:
         value: https://your-site.netlify.app  # Update after Netlify deploy
     healthCheckPath: /api/events/all
 
-  # Translation Worker
-  - type: web
-    name: ai-translation-worker
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: packages/worker
-    buildCommand: npm install && npm run build
-    startCommand: npm run start:prod
-    envVars:
-      - key: NODE_VERSION
-        value: 20
-      - key: PORT
-        value: 4001
-      - key: LIVEKIT_URL
-        sync: false
-      - key: LIVEKIT_API_KEY
-        sync: false
-      - key: LIVEKIT_API_SECRET
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: BACKEND_URL
-        fromService:
-          name: ai-translation-backend
-          type: web
-          property: hostport

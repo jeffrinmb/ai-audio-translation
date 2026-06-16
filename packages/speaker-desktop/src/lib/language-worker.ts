@@ -60,7 +60,7 @@ export class LanguageWorker extends EventEmitter {
     this.gemini.on('error', (err) => {
       console.error(
         `[LanguageWorker:${config.languageCode}] Gemini error:`,
-        err.message,
+        (err as Error).message,
       );
     });
 
@@ -89,6 +89,11 @@ export class LanguageWorker extends EventEmitter {
   processAudio(pcmData: Buffer): void {
     if (!this.isReady) return;
     this.gemini.sendAudioChunk(pcmData);
+  }
+
+  /** Signals end-of-speech to Gemini (call after silence detection) */
+  sendTurnComplete(): void {
+    this.gemini.sendTurnComplete();
   }
 
   /** Cleanly shuts down the Gemini session */

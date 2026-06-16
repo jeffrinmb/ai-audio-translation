@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Room,
   RoomEvent,
@@ -37,7 +37,9 @@ type PageState = 'connecting' | 'connected' | 'error' | 'disconnected';
 export default function EventPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const eventCode = (params.eventCode as string)?.toUpperCase();
+  const isPreview = searchParams.get('preview') === '1';
 
   const [pageState, setPageState] = useState<PageState>('connecting');
   const [room, setRoom] = useState<Room | null>(null);
@@ -52,6 +54,7 @@ export default function EventPage() {
   const { isPlaying, latencyMs, ensureAudioContext } = useAudioPlayer(
     room,
     selectedLang.audioTrack,
+    isPreview,
   );
 
   /** Connect to the LiveKit room as an audience subscriber */
@@ -148,7 +151,15 @@ export default function EventPage() {
       </header>
 
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-6 space-y-6">
-        {/* Error state */}
+        {/* Preview mode banner */}
+        {isPreview && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center gap-2 text-amber-300 text-xs">
+            <VolumeX size={14} />
+            <span><strong>Preview mode</strong> — audio muted to prevent feedback. Captions are live.</span>
+          </div>
+        )}
+
+      {/* Error state */}
         {(pageState === 'error' || pageState === 'disconnected') && error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
             <AlertCircle size={18} className="text-red-400 mt-0.5 flex-shrink-0" />

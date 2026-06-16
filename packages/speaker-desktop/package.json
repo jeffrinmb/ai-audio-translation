@@ -1,0 +1,49 @@
+{
+  "name": "speaker-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Electron speaker desktop app with live translation overlay",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "tsc && electron dist/main.js",
+    "build": "tsc",
+    "dist": "tsc && electron-builder",
+    "rebuild-native": "echo No native modules to rebuild"
+  },
+  "build": {
+    "appId": "com.ai-audio-translation.speaker-desktop",
+    "productName": "AI Translation Speaker",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "src/renderer/**"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "dependencies": {
+    "@livekit/rtc-node": "^0.13.3",
+    "dotenv": "^16.4.5",
+    "livekit-server-sdk": "^2.10.0",
+    "qrcode": "^1.5.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/ws": "^8.5.13",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.0"
+  }
+}
