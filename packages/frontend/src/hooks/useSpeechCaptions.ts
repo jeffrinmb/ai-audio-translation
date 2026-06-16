@@ -1,9 +1,39 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
+
 import { Room } from 'livekit-client';
 import { BACKEND_URL } from '@/lib/constants';
 import type { TargetLanguageCode } from '@/lib/constants';
+
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
+  // eslint-disable-next-line no-var
+  var SpeechRecognition: {
+    new (): SpeechRecognition;
+    prototype: SpeechRecognition;
+  };
+  interface SpeechRecognition extends EventTarget {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    start(): void;
+    abort(): void;
+    onresult: ((ev: SpeechRecognitionEvent) => void) | null;
+    onerror: ((ev: SpeechRecognitionErrorEvent) => void) | null;
+    onend: (() => void) | null;
+  }
+  interface SpeechRecognitionEvent extends Event {
+    resultIndex: number;
+    results: SpeechRecognitionResultList;
+  }
+  interface SpeechRecognitionErrorEvent extends Event {
+    error: string;
+  }
+}
 
 /**
  * useSpeechCaptions — runs Web Speech API on the speaker's microphone,
