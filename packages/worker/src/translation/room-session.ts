@@ -129,7 +129,7 @@ export class RoomSession {
   /** Creates one LanguageWorker per target language */
   private async initLanguageWorkers(): Promise<void> {
     // const targets: TargetLanguageCode[] = ['ja', 'hi', 'ar', 'fr'];
-    const targets: TargetLanguageCode[] = ['ja', 'ar'];
+    const targets: TargetLanguageCode[] = ['ja'];
 
     for (let i = 0; i < targets.length; i++) {
       const langCode = targets[i];
