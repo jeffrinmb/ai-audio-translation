@@ -9,7 +9,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://ai-translation-backend.onrender.com/api/:splat"
+  to = "https://ai-translation-backend-8qx6.onrender.com/api/:splat"
   status = 200
 
 [[headers]]
@@ -19,9 +19,9 @@
     X-XSS-Protection = "1; mode=block"
 
 [context.production.environment]
-  NEXT_PUBLIC_BACKEND_URL = "https://ai-translation-backend.onrender.com"
-  NEXT_PUBLIC_LIVEKIT_URL = "wss://your-project.livekit.cloud"
+  NEXT_PUBLIC_BACKEND_URL = "https://ai-translation-backend-8qx6.onrender.com"
+  NEXT_PUBLIC_LIVEKIT_URL = "wss://ai-language-translation-d54sh6zj.livekit.cloud"
 
 [context.deploy-preview.environment]
-  NEXT_PUBLIC_BACKEND_URL = "https://ai-translation-backend.onrender.com"
-  NEXT_PUBLIC_LIVEKIT_URL = "wss://your-project.livekit.cloud"
+  NEXT_PUBLIC_BACKEND_URL = "https://ai-translation-backend-8qx6.onrender.com"
+  NEXT_PUBLIC_LIVEKIT_URL = "wss://ai-language-translation-d54sh6zj.livekit.cloud"

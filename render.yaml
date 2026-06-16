@@ -20,6 +20,6 @@ services:
       - key: LIVEKIT_API_SECRET
         sync: false
       - key: FRONTEND_URL
-        value: https://your-site.netlify.app  # Update after Netlify deploy
+        value: https://magnificent-bunny-622909.netlify.app
     healthCheckPath: /api/events/all
 
