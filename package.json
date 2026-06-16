@@ -1,0 +1,17 @@
+{
+  "name": "ai-audio-translation",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/backend",
+    "packages/worker",
+    "packages/frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=packages/backend",
+    "dev:worker": "npm run dev --workspace=packages/worker",
+    "dev:frontend": "npm run dev --workspace=packages/frontend",
+    "build:all": "npm run build --workspaces",
+    "install:all": "npm install"
+  }
+}
