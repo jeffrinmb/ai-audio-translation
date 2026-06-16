@@ -1,1 +1,6 @@
-{}
+{
+  "/page": "app/page.js",
+  "/join/page": "app/join/page.js",
+  "/speaker/page": "app/speaker/page.js",
+  "/event/[eventCode]/page": "app/event/[eventCode]/page.js"
+}
