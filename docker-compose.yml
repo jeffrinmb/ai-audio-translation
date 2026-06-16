@@ -21,25 +21,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Translation Worker (Gemini Live + LiveKit audio publishing) ────────────
-  worker:
-    build:
-      context: ./packages/worker
-      dockerfile: Dockerfile
-    ports:
-      - '4001:4001'
-    environment:
-      PORT: 4001
-      LIVEKIT_URL: ${LIVEKIT_URL}
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      BACKEND_URL: http://backend:4000
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-
   # ── Next.js Frontend ───────────────────────────────────────────────────────
   frontend:
     build:

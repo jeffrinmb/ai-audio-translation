@@ -13,7 +13,7 @@ import { Room, RoomEvent, DataPacket_Kind } from 'livekit-client';
  *   bytes 8-15: sentAt as int64 LE (ms since epoch, for latency measurement)
  * followed by raw 16-bit PCM audio.
  */
-export function useAudioPlayer(room: Room | null, topic: string) {
+export function useAudioPlayer(room: Room | null, topic: string, muted = false) {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
@@ -74,7 +74,14 @@ export function useAudioPlayer(room: Room | null, topic: string) {
 
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
-        source.connect(ctx.destination);
+        if (muted) {
+          const gain = ctx.createGain();
+          gain.gain.value = 0;
+          source.connect(gain);
+          gain.connect(ctx.destination);
+        } else {
+          source.connect(ctx.destination);
+        }
 
         // Schedule gaplessly
         const startTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);

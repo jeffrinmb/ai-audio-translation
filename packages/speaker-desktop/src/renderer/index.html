@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Translation Speaker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f13;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Top bar ────────────────────────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: #1a1a24;
+      border-bottom: 1px solid #2d2d3f;
+    }
+    .topbar h1 { font-size: 15px; font-weight: 600; color: #a78bfa; flex: 1; }
+    .badge {
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-idle    { background: #2d2d3f; color: #94a3b8; }
+    .badge-connecting { background: #1e3a5f; color: #60a5fa; }
+    .badge-live    { background: #14532d; color: #4ade80; }
+    .badge-error   { background: #450a0a; color: #f87171; }
+
+    /* ── Main layout ────────────────────────────────────────────────────── */
+    .main {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Left panel ─────────────────────────────────────────────────────── */
+    .panel-left {
+      border-right: 1px solid #2d2d3f;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+    }
+
+    /* ── Right panel ────────────────────────────────────────────────────── */
+    .panel-right {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow: hidden;
+    }
+
+    /* ── Cards ──────────────────────────────────────────────────────────── */
+    .card {
+      background: #1a1a24;
+      border: 1px solid #2d2d3f;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .card h2 { font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+    /* ── Form controls ──────────────────────────────────────────────────── */
+    input, select {
+      width: 100%;
+      padding: 8px 12px;
+      background: #0f0f13;
+      border: 1px solid #2d2d3f;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 13px;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: #a78bfa; }
+    label { font-size: 12px; color: #94a3b8; display: block; margin-bottom: 4px; }
+
+    /* ── Buttons ────────────────────────────────────────────────────────── */
+    .btn {
+      padding: 9px 16px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity .15s, background .15s;
+    }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary  { background: #7c3aed; color: #fff; width: 100%; }
+    .btn-primary:hover:not(:disabled) { background: #6d28d9; }
+    .btn-danger   { background: #b91c1c; color: #fff; width: 100%; }
+    .btn-danger:hover:not(:disabled) { background: #991b1b; }
+    .btn-ghost    { background: #2d2d3f; color: #e2e8f0; }
+    .btn-ghost:hover:not(:disabled) { background: #3d3d52; }
+
+    /* ── QR block ───────────────────────────────────────────────────────── */
+    #qr-block { display: none; text-align: center; }
+    #qr-block svg { max-width: 160px; margin: 0 auto 8px; display: block; }
+    #event-code-display {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: #a78bfa;
+      margin-bottom: 4px;
+    }
+    #audience-url {
+      font-size: 11px;
+      color: #64748b;
+      word-break: break-all;
+    }
+
+    /* ── Language selector checkboxes ───────────────────────────────────── */
+    .lang-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .lang-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #0f0f13;
+      border: 1px solid #2d2d3f;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      user-select: none;
+    }
+    .lang-item:hover { border-color: #a78bfa; }
+    .lang-item input[type=checkbox] { width: auto; accent-color: #a78bfa; }
+
+    /* ── Session controls ───────────────────────────────────────────────── */
+    .session-controls { display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── Caption panel ──────────────────────────────────────────────────── */
+    .caption-panel {
+      flex: 1;
+      background: #1a1a24;
+      border: 1px solid #2d2d3f;
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .caption-panel h2 { font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+    #caption-lang-select { width: auto; min-width: 120px; font-size: 12px; padding: 5px 8px; }
+
+    .caption-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+
+    #caption-text {
+      flex: 1;
+      font-size: 18px;
+      line-height: 1.6;
+      color: #e2e8f0;
+      overflow-y: auto;
+      word-break: break-word;
+    }
+    #caption-text .interim { color: #94a3b8; font-style: italic; }
+    #caption-text .final   { color: #e2e8f0; }
+
+    /* ── Overlay toggle ─────────────────────────────────────────────────── */
+    .overlay-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* ── Error banner ───────────────────────────────────────────────────── */
+    #error-banner {
+      display: none;
+      background: #450a0a;
+      color: #fca5a5;
+      padding: 10px 16px;
+      font-size: 13px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>AI Translation Speaker</h1>
+  <span id="state-badge" class="badge badge-idle">Idle</span>
+</div>
+
+<div class="main">
+  <!-- ── Left panel ─────────────────────────────────────────────────────── -->
+  <div class="panel-left">
+
+    <!-- Create event -->
+    <div class="card">
+      <h2>Event</h2>
+      <label for="event-title">Title</label>
+      <input id="event-title" type="text" placeholder="e.g. Tech Talk 2025" style="margin-bottom:10px;" />
+      <button id="btn-create-event" class="btn btn-primary">Create Event</button>
+    </div>
+
+    <!-- QR / code display -->
+    <div class="card" id="qr-block">
+      <h2>Share with Audience</h2>
+      <div id="event-code-display"></div>
+      <div id="audience-url"></div>
+      <div id="qr-svg-container" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- Mic device -->
+    <div class="card">
+      <h2>Microphone</h2>
+      <label for="mic-select">Input device</label>
+      <select id="mic-select"><option value="">Default</option></select>
+      <div id="mic-status" style="margin-top:8px;font-size:11px;color:#64748b;">Not started</div>
+    </div>
+
+    <!-- Languages -->
+    <div class="card">
+      <h2>Translation Languages</h2>
+      <div class="lang-grid">
+        <label class="lang-item"><input type="checkbox" value="ja" checked /> Japanese</label>
+        <label class="lang-item"><input type="checkbox" value="ar" checked /> Arabic</label>
+        <label class="lang-item"><input type="checkbox" value="hi" checked /> Hindi</label>
+        <label class="lang-item"><input type="checkbox" value="fr" checked /> French</label>
+      </div>
+    </div>
+
+    <!-- Session controls -->
+    <div class="card">
+      <h2>Session</h2>
+      <div class="session-controls">
+        <button id="btn-start" class="btn btn-primary" disabled>Start Session</button>
+        <button id="btn-stop"  class="btn btn-danger"  disabled>End Session</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Right panel ────────────────────────────────────────────────────── -->
+  <div class="panel-right">
+
+    <div id="error-banner"></div>
+
+    <!-- Caption preview -->
+    <div class="caption-panel">
+      <div class="caption-header">
+        <h2 style="margin-bottom:0;">Caption Preview</h2>
+        <select id="caption-lang-select">
+          <option value="ja">Japanese</option>
+          <option value="ar">Arabic</option>
+          <option value="hi">Hindi</option>
+          <option value="fr">French</option>
+        </select>
+      </div>
+      <div id="caption-text"><span style="color:#475569;font-size:14px;">Captions will appear here during a live session…</span></div>
+    </div>
+
+    <!-- Overlay controls -->
+    <div class="overlay-row">
+      <button id="btn-overlay" class="btn btn-ghost" disabled>Show Overlay</button>
+      <span style="font-size:12px;color:#64748b;">Floating always-on-top caption window</span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const api = window.electronAPI;
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let eventCode = null;
+  let sessionState = 'idle';
+  let overlayVisible = false;
+  let lastFinalCaption = '';
+
+  // ── Elements ─────────────────────────────────────────────────────────────
+  const stateBadge       = document.getElementById('state-badge');
+  const btnCreateEvent   = document.getElementById('btn-create-event');
+  const btnStart         = document.getElementById('btn-start');
+  const btnStop          = document.getElementById('btn-stop');
+  const btnOverlay       = document.getElementById('btn-overlay');
+  const qrBlock          = document.getElementById('qr-block');
+  const eventCodeDisplay = document.getElementById('event-code-display');
+  const audienceUrlEl    = document.getElementById('audience-url');
+  const qrSvgContainer   = document.getElementById('qr-svg-container');
+  const captionText      = document.getElementById('caption-text');
+  const captionLangSel   = document.getElementById('caption-lang-select');
+  const micSelect        = document.getElementById('mic-select');
+  const micStatus        = document.getElementById('mic-status');
+  const errorBanner      = document.getElementById('error-banner');
+
+  // ── Mic state ─────────────────────────────────────────────────────────────
+  let micStream = null;
+  let audioCtx = null;
+  let workletNode = null;
+
+  // ── Populate mic devices via MediaDevices API ────────────────────────────
+  async function populateMicDevices() {
+    try {
+      const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+      probe.getTracks().forEach(t => t.stop());
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      devices.filter(d => d.kind === 'audioinput').forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.textContent = d.label || `Microphone (${d.deviceId.slice(0,8)})`;
+        micSelect.appendChild(opt);
+      });
+    } catch(e) { /* permission denied — default only */ }
+  }
+  populateMicDevices();
+
+  // ── Create event ─────────────────────────────────────────────────────────
+  btnCreateEvent.addEventListener('click', async () => {
+    const title = document.getElementById('event-title').value.trim() || 'Untitled Event';
+    btnCreateEvent.disabled = true;
+    try {
+      await api.createEvent(title);
+    } catch (e) {
+      showError(e.message);
+      btnCreateEvent.disabled = false;
+    }
+  });
+
+  api.onEventCreated(({ eventCode: code, audienceUrl, qrSvg }) => {
+    eventCode = code;
+    eventCodeDisplay.textContent = code;
+    audienceUrlEl.textContent = audienceUrl;
+    qrSvgContainer.innerHTML = qrSvg;
+    qrBlock.style.display = 'block';
+    btnStart.disabled = false;
+    btnCreateEvent.disabled = false;
+  });
+
+  // ── Mic capture (getUserMedia + AudioWorklet → IPC) ──────────────────────
+  async function startMic() {
+    const deviceId = micSelect.value;
+    const constraints = {
+      audio: deviceId
+        ? { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true, sampleRate: 16000 }
+        : { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
+      video: false,
+    };
+    micStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const track = micStream.getAudioTracks()[0];
+    micStatus.textContent = '\uD83C\uDFA4 ' + (track.label || 'Microphone active');
+
+    audioCtx = new AudioContext({ sampleRate: 16000 });
+    await audioCtx.audioWorklet.addModule('./mic-processor.js');
+
+    const source = audioCtx.createMediaStreamSource(micStream);
+    workletNode = new AudioWorkletNode(audioCtx, 'mic-processor');
+    workletNode.port.onmessage = (e) => { api.sendMicChunk(e.data.pcm); };
+
+    // Connect to a silent gain node (not destination) to keep worklet alive
+    // without routing raw mic audio to speakers (which would cause feedback)
+    const silentGain = audioCtx.createGain();
+    silentGain.gain.value = 0;
+    source.connect(workletNode);
+    workletNode.connect(silentGain);
+    silentGain.connect(audioCtx.destination);
+  }
+
+  function stopMic() {
+    try { workletNode && workletNode.disconnect(); } catch(_) {}
+    try { audioCtx && audioCtx.close(); } catch(_) {}
+    try { micStream && micStream.getTracks().forEach(t => t.stop()); } catch(_) {}
+    workletNode = null; audioCtx = null; micStream = null;
+    micStatus.textContent = 'Not started';
+  }
+
+  // ── Start session ─────────────────────────────────────────────────────────
+  btnStart.addEventListener('click', async () => {
+    if (!eventCode) return;
+    const langs = [...document.querySelectorAll('.lang-item input:checked')].map(el => el.value);
+    if (langs.length === 0) { showError('Select at least one language.'); return; }
+    btnStart.disabled = true;
+    hideError();
+    try {
+      await api.startSession({ eventCode, languages: langs });
+      await startMic();
+    } catch (e) {
+      showError(e.message);
+      btnStart.disabled = false;
+      stopMic();
+    }
+  });
+
+  // ── End session ───────────────────────────────────────────────────────────
+  btnStop.addEventListener('click', async () => {
+    btnStop.disabled = true;
+    stopMic();
+    await api.endSession().catch(e => showError(e.message));
+  });
+
+  // ── Overlay ───────────────────────────────────────────────────────────────
+  btnOverlay.addEventListener('click', () => {
+    api.toggleOverlay();
+    overlayVisible = !overlayVisible;
+    btnOverlay.textContent = overlayVisible ? 'Hide Overlay' : 'Show Overlay';
+  });
+
+  // ── Caption language ──────────────────────────────────────────────────────
+  captionLangSel.addEventListener('change', () => {
+    api.setCaptionLang(captionLangSel.value);
+    captionText.innerHTML = '<span style="color:#475569;font-size:14px;">Waiting for captions…</span>';
+    lastFinalCaption = '';
+  });
+
+  // ── Session state updates ─────────────────────────────────────────────────
+  api.onSessionState(state => {
+    sessionState = state;
+    stateBadge.className = `badge badge-${state}`;
+    const labels = { idle: 'Idle', connecting: 'Connecting…', live: 'LIVE', stopped: 'Idle', error: 'Error' };
+    stateBadge.textContent = labels[state] || state;
+
+    if (state === 'live') {
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+      btnOverlay.disabled = false;
+    } else if (state === 'idle' || state === 'stopped') {
+      btnStart.disabled = !eventCode;
+      btnStop.disabled = true;
+      btnOverlay.disabled = true;
+    } else if (state === 'error') {
+      btnStart.disabled = !eventCode;
+      btnStop.disabled = true;
+    }
+  });
+
+  // ── Caption updates ───────────────────────────────────────────────────────
+  api.onCaptionUpdate(({ text, isFinal }) => {
+    if (isFinal) {
+      lastFinalCaption = text;
+      captionText.innerHTML = `<span class="final">${escapeHtml(text)}</span>`;
+    } else {
+      captionText.innerHTML =
+        (lastFinalCaption ? `<span class="final">${escapeHtml(lastFinalCaption)}</span> ` : '') +
+        `<span class="interim">${escapeHtml(text)}</span>`;
+    }
+  });
+
+  // ── Error handling ────────────────────────────────────────────────────────
+  api.onError(msg => showError(msg));
+
+  function showError(msg) {
+    errorBanner.textContent = '⚠ ' + msg;
+    errorBanner.style.display = 'block';
+  }
+  function hideError() {
+    errorBanner.style.display = 'none';
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>

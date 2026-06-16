@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Caption Overlay</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── Outer wrapper ─────────────────────────────────────────────────── */
+    .overlay-wrapper {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: flex-end;
+      padding: 8px 12px;
+      pointer-events: none;
+    }
+
+    /* ── Caption bar ───────────────────────────────────────────────────── */
+    .caption-bar {
+      width: 100%;
+      background: rgba(10, 10, 18, 0.82);
+      backdrop-filter: blur(8px);
+      border-radius: 10px;
+      padding: 10px 16px 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 56px;
+      pointer-events: auto;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* ── Caption text ──────────────────────────────────────────────────── */
+    #caption-text {
+      flex: 1;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 22px;
+      font-weight: 500;
+      line-height: 1.4;
+      color: #ffffff;
+      word-break: break-word;
+      transition: opacity 0.15s ease;
+    }
+    #caption-text.interim { color: rgba(255,255,255,0.55); }
+    #caption-text.final   { color: #ffffff; }
+
+    /* ── Controls ──────────────────────────────────────────────────────── */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .ctrl-btn {
+      background: rgba(255,255,255,0.1);
+      border: none;
+      border-radius: 5px;
+      color: rgba(255,255,255,0.7);
+      font-size: 13px;
+      padding: 4px 8px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s;
+    }
+    .ctrl-btn:hover { background: rgba(255,255,255,0.2); }
+
+    /* ── Fade-in animation ─────────────────────────────────────────────── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .caption-animate {
+      animation: fadeIn 0.2s ease forwards;
+    }
+  </style>
+</head>
+<body>
+
+<div class="overlay-wrapper">
+  <div class="caption-bar">
+    <div id="caption-text" class="final"> </div>
+    <div class="controls">
+      <button class="ctrl-btn" id="btn-move" title="Move overlay to top/bottom">⇅</button>
+      <button class="ctrl-btn" id="btn-close" title="Close overlay">✕</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const api = window.electronAPI;
+  const captionEl = document.getElementById('caption-text');
+  const btnMove   = document.getElementById('btn-move');
+  const btnClose  = document.getElementById('btn-close');
+
+  btnMove.addEventListener('click',  () => api.toggleOverlayPosition());
+  btnClose.addEventListener('click', () => api.closeOverlay());
+
+  // Caption updates from main process
+  api.onCaptionUpdate(({ text, isFinal }) => {
+    captionEl.className = isFinal ? 'final caption-animate' : 'interim';
+    captionEl.textContent = text || ' ';
+    // Re-trigger animation on each final update
+    if (isFinal) {
+      captionEl.classList.remove('caption-animate');
+      void captionEl.offsetWidth; // reflow
+      captionEl.classList.add('caption-animate');
+    }
+  });
+</script>
+</body>
+</html>

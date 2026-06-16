@@ -61,6 +61,8 @@ export class GeminiLiveClient extends EventEmitter {
   private reconnectDelay = 3000;
   private pendingTranscript = '';
   private pendingOriginalText = '';
+  private isCycling = false;
+  private audioQueue: Buffer[] = [];  // buffers audio during reconnect
 
   private static readonly MODEL = 'models/gemini-3.5-live-translate-preview';
   private static readonly GEMINI_WS_URL =
@@ -116,7 +118,7 @@ export class GeminiLiveClient extends EventEmitter {
         this.pendingTranscript = '';
         this.pendingOriginalText = '';
         this.emit('disconnected');
-        if (!this.isClosing) this.scheduleReconnect();
+        if (!this.isClosing && !this.isCycling) this.scheduleReconnect();
       });
 
       this.ws.on('error', (err) => this.emit('error', err));
@@ -158,6 +160,10 @@ export class GeminiLiveClient extends EventEmitter {
    */
   sendAudioChunk(pcmData: Buffer): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      // Buffer during reconnect (cap at 50 chunks = 5s)
+      if (this.isCycling && this.audioQueue.length < 50) {
+        this.audioQueue.push(pcmData);
+      }
       return;
     }
 
@@ -173,6 +179,26 @@ export class GeminiLiveClient extends EventEmitter {
     this.ws.send(JSON.stringify(message));
   }
 
+  private flushAudioQueue(): void {
+    const queued = this.audioQueue.splice(0);
+    for (const chunk of queued) {
+      this.sendAudioChunk(chunk);
+    }
+    if (queued.length > 0) {
+      console.log(`[GeminiLive:${this.config.targetLanguageCode}] Flushed ${queued.length} buffered chunks`);
+    }
+  }
+
+  /**
+   * Signals end-of-turn to Gemini so it finalises the current translation
+   * and does not re-process already-sent audio in the next context window.
+   * Call this after a detected silence gap (VAD).
+   */
+  sendTurnComplete(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    this.ws.send(JSON.stringify({ clientContent: { turnComplete: true } }));
+  }
+
   /**
    * Parses incoming server messages from Gemini 3.5 Live Translate.
    *
@@ -186,58 +212,67 @@ export class GeminiLiveClient extends EventEmitter {
     try {
       const message = JSON.parse(rawData.toString('utf8'));
 
-
-      // Session ready confirmation
       if (message.setupComplete) {
-        console.log(
-          `[GeminiLive:${this.config.targetLanguageCode}] Setup complete`,
-        );
+        console.log(`[GeminiLive:${this.config.targetLanguageCode}] Setup complete`);
         return;
       }
 
-      if (message.serverContent) {
-        const content = message.serverContent;
+      if (!message.serverContent) return;
+      const content = message.serverContent;
 
-        // ── Translated audio chunks (AUDIO modality) ─────────────────────────
-        if (content.modelTurn?.parts) {
-          for (const part of content.modelTurn.parts) {
-            if (part.inlineData?.data) {
-              const audioBuffer = Buffer.from(part.inlineData.data, 'base64');
-              this.emit('audioChunk', {
-                pcmData: audioBuffer,
-                sampleRate: 24000,
-              } as TranslatedAudioChunk);
-            }
+      // ── Translated audio chunks ───────────────────────────────────────────
+      if (content.modelTurn?.parts) {
+        for (const part of content.modelTurn.parts) {
+          if (part.inlineData?.data) {
+            const audioBuffer = Buffer.from(part.inlineData.data, 'base64');
+            this.emit('audioChunk', { pcmData: audioBuffer, sampleRate: 24000 } as TranslatedAudioChunk);
           }
         }
+      }
 
-        // ── Translated text captions (outputAudioTranscription) ──────────────
-        if (content.outputTranscription?.text) {
-          this.pendingTranscript += content.outputTranscription.text;
-          const isFinal = content.turnComplete === true;
-          this.emit('caption', {
-            text: `${this.pendingTranscript}`,
-            isFinal,
-          } as TranslatedCaption);
-          console.log(`[GeminiLive:${this.config.targetLanguageCode}] Caption (isFinal=${isFinal}): ${this.pendingTranscript}`);
-          if (isFinal) {
-            this.pendingTranscript = '';
-          }
-        }
+      // ── Caption (output transcription) ───────────────────────────────────
+      if (content.outputTranscription?.text) {
+        this.pendingTranscript += content.outputTranscription.text;
+        this.emit('caption', { text: this.pendingTranscript, isFinal: false } as TranslatedCaption);
+      }
 
-        // ── Turn complete with no transcription — close out any pending caption
-        if (content.turnComplete && !content.outputTranscription?.text) {
-          if (this.pendingTranscript) {
-            this.emit('caption', { text: `${this.pendingTranscript}`, isFinal: true } as TranslatedCaption);
-            this.pendingTranscript = '';
-          } else {
-            this.emit('caption', { text: '', isFinal: true } as TranslatedCaption);
-          }
+      // ── Turn end: reset transcript ────────────────────────────────────────
+      if (content.turnComplete) {
+        if (this.pendingTranscript) {
+          this.emit('caption', { text: this.pendingTranscript, isFinal: true } as TranslatedCaption);
         }
+        this.pendingTranscript = '';
       }
     } catch (err) {
       this.emit('error', new Error(`Failed to parse Gemini message: ${err}`));
     }
+  }
+
+  /**
+   * Closes and immediately reopens the WebSocket after a turn ends.
+   * This clears Gemini's context window, preventing it from re-translating
+   * previously heard audio and causing repetition loops.
+   */
+  private cycleSession(): void {
+    if (this.isCycling || this.isClosing) return;
+    this.isCycling = true;
+    console.log(`[GeminiLive:${this.config.targetLanguageCode}] Cycling session for fresh context`);
+    this.ws?.close();
+    this.ws = null;
+    // Small delay to let the close complete before reconnecting
+    setTimeout(async () => {
+      if (this.isClosing) { this.isCycling = false; return; }
+      try {
+        await this.connect();      // isCycling stays true → audio keeps buffering
+        this.isCycling = false;
+        this.flushAudioQueue();    // drain buffered chunks into fresh session
+      } catch (err) {
+        this.isCycling = false;
+        this.audioQueue = [];
+        console.error(`[GeminiLive:${this.config.targetLanguageCode}] Cycle reconnect failed:`, (err as Error).message);
+        this.scheduleReconnect();
+      }
+    }, 200);
   }
 
   /** Schedules a reconnect with exponential back-off: 3s -> 6s -> 12s -> max 60s */
@@ -254,7 +289,7 @@ export class GeminiLiveClient extends EventEmitter {
         await this.connect();
       } catch (err) {
         console.error(
-          `[GeminiLive:${this.config.targetLanguageCode}] Reconnect failed: ${err.message}`,
+          `[GeminiLive:${this.config.targetLanguageCode}] Reconnect failed: ${(err as Error).message}`,
         );
         this.scheduleReconnect();
       }
